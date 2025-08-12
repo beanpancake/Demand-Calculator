@@ -4,7 +4,7 @@ import sys
 import pytest
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-from demand import parse_load
+from webapp.server import parse_load
 
 
 def test_negative_values_return_zero():
@@ -25,3 +25,4 @@ def test_values_over_500_treated_as_watts():
 
 def test_value_500_treated_as_amps():
     assert parse_load("500", 240) == 500 * 240 * 0.8
+
