@@ -11,7 +11,8 @@ from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
 from reportlab.lib import colors
-from reportlab.platypus import Table, TableStyle
+from reportlab.platypus import Table, TableStyle, Paragraph
+from reportlab.lib.styles import ParagraphStyle
 import math
 
 LOGO_PATH = "logo.png"
@@ -303,23 +304,36 @@ def generate_pdf_report(filename, inputs, results, debug_lines):
     c.drawString(margin, y, "CEC Single Dwelling Demand Calculation Report")
     y -= 30
 
+    normal_style = ParagraphStyle("table_normal", fontName="Helvetica", fontSize=10)
+    header_style = ParagraphStyle(
+        "table_header", parent=normal_style, fontName="Helvetica-Bold", textColor=colors.white
+    )
+
     def draw_table_section(title, rows):
         nonlocal y
         c.setFont("Helvetica-Bold", 13)
-        table_data = [["Item", "Value"]] + rows
-        table = Table(table_data, colWidths=[200, width - 2*margin - 200])
-        table.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (-1,0), colors.lightblue),
-            ('TEXTCOLOR', (0,0), (-1,0), colors.white),
-            ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.whitesmoke, colors.lightgrey]),
-            ('GRID', (0,0), (-1,-1), 0.5, colors.black),
-        ]))
-        tw, th = table.wrapOn(c, width - 2*margin, y - 18)
+        table_data = [[Paragraph("Item", header_style), Paragraph("Value", header_style)]]
+        for item, value in rows:
+            table_data.append(
+                [Paragraph(str(item), normal_style), Paragraph(str(value), normal_style)]
+            )
+        table = Table(table_data, colWidths=[200, width - 2 * margin - 200])
+        table.setStyle(
+            TableStyle(
+                [
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.lightblue),
+                    ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.whitesmoke, colors.lightgrey]),
+                    ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+                    ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                ]
+            )
+        )
+        tw, th = table.wrapOn(c, width - 2 * margin, y - 18)
         if y - 18 - th < margin:
             c.showPage()
             y = height - margin
             c.setFont("Helvetica-Bold", 13)
-            tw, th = table.wrapOn(c, width - 2*margin, y - 18)
+            tw, th = table.wrapOn(c, width - 2 * margin, y - 18)
         c.drawString(margin, y, title)
         y -= 18
         table.drawOn(c, margin, y - th)
