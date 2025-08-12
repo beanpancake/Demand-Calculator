@@ -11,6 +11,7 @@ from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
 from reportlab.lib import colors
+from reportlab.platypus import Table, TableStyle
 import math
 
 LOGO_PATH = "logo.png"
@@ -265,96 +266,82 @@ def generate_pdf_report(filename, inputs, results, debug_lines):
 
     # White band behind logo for cleanliness
     c.setFillColor(colors.white)
-    c.rect(margin-5, y-90, width - 2*margin + 10, 90, fill=1, stroke=0)
+    band_h = 60
+    c.rect(margin-5, y-band_h, width - 2*margin + 10, band_h, fill=1, stroke=0)
     c.setFillColor(colors.black)
 
-    # Logo
+    # Logo at top-right
     try:
         logo = ImageReader(LOGO_PATH)
-        c.drawImage(logo, margin, y-80, width=300, height=80, preserveAspectRatio=True, mask='auto')
+        logo_w, logo_h = 150, 40
+        c.drawImage(logo, width - margin - logo_w, y - logo_h, width=logo_w, height=logo_h,
+                    preserveAspectRatio=True, mask='auto')
     except Exception as e:
         print(f"PDF logo load failed: {e}")
-    y -= 100
+    y -= band_h + 20
 
     # Title
     c.setFont("Helvetica-Bold", 16)
     c.drawString(margin, y, "CEC Single Dwelling Demand Calculation Report")
-    y -= 24
+    y -= 30
 
-    # Site Info
-    c.setFont("Helvetica-Bold", 13)
-    c.drawString(margin, y, "Site Info")
-    y -= 18
-    c.setFont("Helvetica", 11)
-    c.drawString(margin + 15, y, f"Voltage (V): {inputs.get('Voltage (V)')}")
-    y -= 14
-    c.drawString(margin + 15, y, f"Main Area (m²): {inputs.get('Main Area (m²)')}")
-    y -= 20
-
-    # Loads (Main)
-    c.setFont("Helvetica-Bold", 13)
-    c.drawString(margin, y, "Loads (Main Dwelling)")
-    y -= 18
-    c.setFont("Helvetica", 11)
-
-    main_fields = [
-        ("Range (W)", "Range (W)"),
-        ("Heating (W)", "Heating (W)"),
-        ("AC (W)", "AC (W)"),
-        ("Interlocked (Heat/AC)", "Interlocked (Heat/AC)"),
-        ("EVSE (W)", "EVSE (W)"),
-        ("Additional Loads >1500W (W)", "Additional Loads >1500W (W)"),
-        ("Tankless WH (W) [100%]", "Tankless WH (W) [100%]"),
-        ("Steamers/Pools/Spas WH (W) [100%]", "Steamers/Pools/Spas WH (W) [100%]"),
-    ]
-    for label, key in main_fields:
-        val = inputs.get(key, "Not applicable")
-        if isinstance(val, float) and val <= 0:
-            val = "Not applicable"
-        c.drawString(margin + 15, y, f"{label}: {val}")
-        y -= 14
-        if y < margin + 80:
-            c.showPage(); y = height - margin
-            c.setFont("Helvetica", 11)
-
-    # Suite
-    if inputs.get("Suite Included") == "Yes":
-        y -= 8
+    def draw_table_section(title, rows):
+        nonlocal y
         c.setFont("Helvetica-Bold", 13)
-        c.drawString(margin, y, "Loads (Secondary Suite)")
+        c.drawString(margin, y, title)
         y -= 18
-        c.setFont("Helvetica", 11)
-        suite_fields = [
-            ("Suite Area (m²)", "Suite Area (m²)"),
-            ("Suite Range (W)", "Suite Range (W)"),
-            ("Suite EVSE (W)", "Suite EVSE (W)"),
-            ("Suite Additional Loads Raw (W)", "Suite Additional Loads Raw (W)"),
-            ("Suite Additional Loads Factored (W)", "Suite Additional Loads Factored (W)"),
-            ("Suite Tankless WH (W)", "Suite Tankless WH (W)"),
-            ("Suite Steamers/Pools/Spas (W)", "Suite Steamers/Pools/Spas (W)"),
-        ]
-        for label, key in suite_fields:
-            val = inputs.get(key, "Not applicable")
-            if isinstance(val, float) and val <= 0:
-                val = "Not applicable"
-            c.drawString(margin + 15, y, f"{label}: {val}")
-            y -= 14
-            if y < margin + 80:
-                c.showPage(); y = height - margin
-                c.setFont("Helvetica", 11)
+        table_data = [["Item", "Value"]] + rows
+        table = Table(table_data, colWidths=[200, width - 2*margin - 200])
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), colors.lightblue),
+            ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+            ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.whitesmoke, colors.lightgrey]),
+            ('GRID', (0,0), (-1,-1), 0.5, colors.black),
+        ]))
+        tw, th = table.wrapOn(c, width - 2*margin, y)
+        if y - th < margin:
+            c.showPage(); y = height - margin - 18
+            c.setFont("Helvetica-Bold", 13)
+            c.drawString(margin, y, title)
+            y -= 18
+            tw, th = table.wrapOn(c, width - 2*margin, y)
+        table.drawOn(c, margin, y - th)
+        y -= th + 20
 
-    # Results
-    y -= 8
-    c.setFont("Helvetica-Bold", 13)
-    c.drawString(margin, y, "Results")
-    y -= 18
-    c.setFont("Helvetica", 11)
-    for k, v in results.items():
-        c.drawString(margin + 15, y, f"{k}: {v}")
-        y -= 14
-        if y < margin + 80:
-            c.showPage(); y = height - margin
-            c.setFont("Helvetica", 11)
+    # Site Info table
+    site_rows = [["Voltage (V)", inputs.get('Voltage (V)')],
+                 ["Main Area (m²)", inputs.get('Main Area (m²)')]]
+    draw_table_section("Site Info", site_rows)
+
+    # Loads (Main Dwelling) table
+    main_fields = [
+        ("Range (W)", inputs.get('Range (W)', 'Not applicable')),
+        ("Heating (W)", inputs.get('Heating (W)', 'Not applicable')),
+        ("AC (W)", inputs.get('AC (W)', 'Not applicable')),
+        ("Interlocked (Heat/AC)", inputs.get('Interlocked (Heat/AC)', 'Not applicable')),
+        ("EVSE (W)", inputs.get('EVSE (W)', 'Not applicable')),
+        ("Additional Loads >1500W (W)", inputs.get('Additional Loads >1500W (W)', 'Not applicable')),
+        ("Tankless WH (W) [100%]", inputs.get('Tankless WH (W) [100%]', 'Not applicable')),
+        ("Steamers/Pools/Spas WH (W) [100%]", inputs.get('Steamers/Pools/Spas WH (W) [100%]', 'Not applicable')),
+    ]
+    draw_table_section("Loads (Main Dwelling)", main_fields)
+
+    # Suite table
+    if inputs.get("Suite Included") == "Yes":
+        suite_rows = [
+            ["Suite Area (m²)", inputs.get('Suite Area (m²)')],
+            ["Suite Range (W)", inputs.get('Suite Range (W)', 'Not applicable')],
+            ["Suite EVSE (W)", inputs.get('Suite EVSE (W)', 'Not applicable')],
+            ["Suite Additional Loads Raw (W)", inputs.get('Suite Additional Loads Raw (W)', 'Not applicable')],
+            ["Suite Additional Loads Factored (W)", inputs.get('Suite Additional Loads Factored (W)', 'Not applicable')],
+            ["Suite Tankless WH (W)", inputs.get('Suite Tankless WH (W)', 'Not applicable')],
+            ["Suite Steamers/Pools/Spas (W)", inputs.get('Suite Steamers/Pools/Spas (W)', 'Not applicable')],
+        ]
+        draw_table_section("Loads (Secondary Suite)", suite_rows)
+
+    # Results table
+    result_rows = [[k, v] for k, v in results.items()]
+    draw_table_section("Results", result_rows)
 
     # Debug
     y -= 8
