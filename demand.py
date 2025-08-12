@@ -11,7 +11,8 @@ from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
 from reportlab.lib import colors
-from reportlab.platypus import Table, TableStyle
+from reportlab.platypus import Table, TableStyle, Paragraph
+from reportlab.lib.styles import getSampleStyleSheet
 import math
 
 LOGO_PATH = "logo.png"
@@ -303,18 +304,28 @@ def generate_pdf_report(filename, inputs, results, debug_lines):
     c.drawString(margin, y, "CEC Single Dwelling Demand Calculation Report")
     y -= 30
 
+    styles = getSampleStyleSheet()
+    normal_style = styles['Normal']
+    normal_style.wordWrap = 'CJK'
+
     def draw_table_section(title, rows):
         nonlocal y
         c.setFont("Helvetica-Bold", 13)
         c.drawString(margin, y, title)
         y -= 18
-        table_data = [["Item", "Value"]] + rows
+        table_data = [[Paragraph("Item", normal_style), Paragraph("Value", normal_style)]]
+        for k, v in rows:
+            table_data.append([
+                Paragraph(str(k), normal_style),
+                Paragraph(str(v) if v is not None else '', normal_style)
+            ])
         table = Table(table_data, colWidths=[200, width - 2*margin - 200])
         table.setStyle(TableStyle([
             ('BACKGROUND', (0,0), (-1,0), colors.lightblue),
             ('TEXTCOLOR', (0,0), (-1,0), colors.white),
             ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.whitesmoke, colors.lightgrey]),
             ('GRID', (0,0), (-1,-1), 0.5, colors.black),
+            ('VALIGN', (0,0), (-1,-1), 'TOP'),
         ]))
         tw, th = table.wrapOn(c, width - 2*margin, y)
         if y - th < margin:
