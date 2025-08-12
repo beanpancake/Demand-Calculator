@@ -404,6 +404,20 @@ def show_debug_popup(debug_lines):
     st.insert(tk.END, "\n".join(debug_lines))
     st.configure(state="disabled")
 
+
+def show_help():
+    """Display a popup describing how to use the program."""
+    help_text = (
+        "CEC Single Dwelling Demand Calculator\n\n"
+        "Enter the site information and any applicable loads. "
+        "Loads may be provided in watts or breaker amperes (values \u2264500 are "
+        "treated as breaker amps).\n\n"
+        "Use 'Calculate Demand' to perform the calculation and view details.\n"
+        "After a calculation, 'Generate PDF Report' saves a summary of the inputs "
+        "and results."
+    )
+    messagebox.showinfo("Help", help_text)
+
 if __name__ == "__main__":
     # ----------------------------- UI Setup -----------------------------
 
@@ -587,5 +601,7 @@ if __name__ == "__main__":
     btn_frame = tk.Frame(root); btn_frame.grid(row=row, column=0, sticky='w', padx=10, pady=12)
     tk.Button(btn_frame, text="Calculate Demand", command=calculate_demand).pack(side='left', padx=(0,10))
     tk.Button(btn_frame, text="Generate PDF Report", command=save_pdf_report).pack(side='left')
+
+    tk.Button(root, text="Help", command=show_help).place(relx=1.0, rely=1.0, anchor='se', x=-10, y=-10)
 
     root.mainloop()
