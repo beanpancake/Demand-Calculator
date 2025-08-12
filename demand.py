@@ -21,13 +21,19 @@ last_calc_data = None  # (inputs, results, debug)
 # ----------------------------- Helpers -----------------------------
 
 def parse_load(raw, voltage):
-    """If value ≤100: treat as breaker amps (A*V*0.8). If >100: watts. Blank/invalid -> 0."""
+    """If value ≤500: treat as breaker amps (A*V*0.8).
+
+    Values greater than 500 are treated as watts. Blank, invalid, or
+    non‑positive values return 0.
+    """
     s = raw.strip()
     if not s:
         return 0.0
     try:
         val = float(s)
-        if val <= 100:
+        if val <= 0:
+            return 0.0
+        if val <= 500:
             return val * voltage * 0.8
         return val
     except Exception:
@@ -390,163 +396,164 @@ def show_debug_popup(debug_lines):
     st.insert(tk.END, "\n".join(debug_lines))
     st.configure(state="disabled")
 
-# ----------------------------- UI Setup -----------------------------
+if __name__ == "__main__":
+    # ----------------------------- UI Setup -----------------------------
 
-root = tk.Tk()
-root.title("CEC Single Dwelling Demand Calculator (CEC 2024)")
+    root = tk.Tk()
+    root.title("CEC Single Dwelling Demand Calculator (CEC 2024)")
 
-# Logo
-try:
-    img = Image.open(LOGO_PATH)
-    img = img.resize((300, 80), RESAMPLE_FILTER)
-    photo = ImageTk.PhotoImage(img)
-    tk.Label(root, image=photo).grid(row=0, column=0, sticky='w', padx=10, pady=10)
-except Exception as e:
-    print(f"Logo load failed: {e}")
+    # Logo
+    try:
+        img = Image.open(LOGO_PATH)
+        img = img.resize((300, 80), RESAMPLE_FILTER)
+        photo = ImageTk.PhotoImage(img)
+        tk.Label(root, image=photo).grid(row=0, column=0, sticky='w', padx=10, pady=10)
+    except Exception as e:
+        print(f"Logo load failed: {e}")
 
-row = 1  # main column row counter
+    row = 1  # main column row counter
 
-def section_label(text):
-    global row
-    tk.Label(root, text=text, font=("Helvetica", 11, "bold")).grid(row=row, column=0, sticky='w', padx=10, pady=(10,2))
+    def section_label(text):
+        global row
+        tk.Label(root, text=text, font=("Helvetica", 11, "bold")).grid(row=row, column=0, sticky='w', padx=10, pady=(10,2))
+        row += 1
+
+    def add_labeled_entry(label_text, var, width=14):
+        global row
+        frm = tk.Frame(root)
+        frm.grid(row=row, column=0, sticky='w', padx=10, pady=2)
+        tk.Label(frm, text=label_text, width=34, anchor='w').pack(side='left')
+        tk.Entry(frm, textvariable=var, width=width).pack(side='left')
+        row += 1
+
+    # Site Info
+    section_label("Site Info")
+    voltage_var = tk.StringVar(value="240")
+    add_labeled_entry("Voltage (V):", voltage_var)
+    area_var = tk.StringVar()
+    add_labeled_entry("Main Area (m²):", area_var)
+
+    # Loads — Main
+    section_label("Loads — Main")
+    range_var = tk.StringVar();    add_labeled_entry("Range (W or breaker A):", range_var)
+    heat_var  = tk.StringVar();    add_labeled_entry("Space Heating (W or breaker A):", heat_var)
+    ac_var    = tk.StringVar();    add_labeled_entry("Air Conditioning (W or breaker A):", ac_var)
+
+    interlock_var = tk.IntVar()
+    frm_il = tk.Frame(root); frm_il.grid(row=row, column=0, sticky='w', padx=10, pady=2)
+    tk.Checkbutton(frm_il, text="Heat and AC Interlocked", variable=interlock_var).pack(side='left')
     row += 1
 
-def add_labeled_entry(label_text, var, width=14):
-    global row
-    frm = tk.Frame(root)
-    frm.grid(row=row, column=0, sticky='w', padx=10, pady=2)
-    tk.Label(frm, text=label_text, width=34, anchor='w').pack(side='left')
-    tk.Entry(frm, textvariable=var, width=width).pack(side='left')
+    evse_var = tk.StringVar();     add_labeled_entry("EVSE (W or breaker A):", evse_var)
+
+    # Additional Loads >1500 W — Main (dynamic)
+    section_label("Additional Loads >1500 W — Main (dryer, storage WH, etc.)")
+    additional_vars_main, additional_entries_main = [], []
+    def on_change_additional_main():
+        add_dynamic_row_if_needed(additional_vars_main, additional_entries_main)
+    def build_additional_main():
+        global row
+        frame = tk.Frame(root)
+        frame.grid(row=row, column=0, sticky='w', padx=10, pady=(0,4))
+        row += 1
+        for _ in range(MAX_DYNAMIC_FIELDS):
+            var = tk.StringVar()
+            var.trace_add('write', lambda *_: on_change_additional_main())
+            ent = tk.Entry(frame, textvariable=var, width=14)
+            additional_vars_main.append(var)
+            additional_entries_main.append(ent)
+        additional_entries_main[0].grid(row=0, column=0, sticky='w', padx=2, pady=1)
+    build_additional_main()
+
+    # Tankless WH (single)
+    section_label("Tankless Water Heater — Main (100%)")
+    tankless_var_main = tk.StringVar(); add_labeled_entry("Tankless WH (W or breaker A):", tankless_var_main)
+
+    # Steamers/Pools/Spas WH — Main (dynamic)
+    section_label("Steamers / Pools / Hot tubs / Spas WH — Main (100%)")
+    sps_vars_main, sps_entries_main = [], []
+    def on_change_sps_main():
+        add_dynamic_row_if_needed(sps_vars_main, sps_entries_main)
+    def build_sps_main():
+        global row
+        frame = tk.Frame(root)
+        frame.grid(row=row, column=0, sticky='w', padx=10, pady=(0,4))
+        row += 1
+        for _ in range(MAX_DYNAMIC_FIELDS):
+            var = tk.StringVar()
+            var.trace_add('write', lambda *_: on_change_sps_main())
+            ent = tk.Entry(frame, textvariable=var, width=14)
+            sps_vars_main.append(var)
+            sps_entries_main.append(ent)
+        sps_entries_main[0].grid(row=0, column=0, sticky='w', padx=2, pady=1)
+    build_sps_main()
+
+    # Secondary Suite
+    section_label("Secondary Suite")
+    suite_var = tk.IntVar()
+    def toggle_suite():
+        suite_frame.grid() if suite_var.get() else suite_frame.grid_remove()
+    frm_suite_cb = tk.Frame(root); frm_suite_cb.grid(row=row, column=0, sticky='w', padx=10, pady=2)
+    tk.Checkbutton(frm_suite_cb, text="Include Secondary Suite", variable=suite_var, command=toggle_suite).pack(side='left')
     row += 1
 
-# Site Info
-section_label("Site Info")
-voltage_var = tk.StringVar(value="240")
-add_labeled_entry("Voltage (V):", voltage_var)
-area_var = tk.StringVar()
-add_labeled_entry("Main Area (m²):", area_var)
-
-# Loads — Main
-section_label("Loads — Main")
-range_var = tk.StringVar();    add_labeled_entry("Range (W or breaker A):", range_var)
-heat_var  = tk.StringVar();    add_labeled_entry("Space Heating (W or breaker A):", heat_var)
-ac_var    = tk.StringVar();    add_labeled_entry("Air Conditioning (W or breaker A):", ac_var)
-
-interlock_var = tk.IntVar()
-frm_il = tk.Frame(root); frm_il.grid(row=row, column=0, sticky='w', padx=10, pady=2)
-tk.Checkbutton(frm_il, text="Heat and AC Interlocked", variable=interlock_var).pack(side='left')
-row += 1
-
-evse_var = tk.StringVar();     add_labeled_entry("EVSE (W or breaker A):", evse_var)
-
-# Additional Loads >1500 W — Main (dynamic)
-section_label("Additional Loads >1500 W — Main (dryer, storage WH, etc.)")
-additional_vars_main, additional_entries_main = [], []
-def on_change_additional_main():
-    add_dynamic_row_if_needed(additional_vars_main, additional_entries_main)
-def build_additional_main():
-    global row
-    frame = tk.Frame(root)
-    frame.grid(row=row, column=0, sticky='w', padx=10, pady=(0,4))
+    suite_frame = tk.Frame(root, bd=2, relief='groove')
+    suite_frame.grid(row=row, column=0, sticky='we', padx=10, pady=(2,10))
+    suite_frame.grid_remove()
     row += 1
-    for _ in range(MAX_DYNAMIC_FIELDS):
-        var = tk.StringVar()
-        var.trace_add('write', lambda *_: on_change_additional_main())
-        ent = tk.Entry(frame, textvariable=var, width=14)
-        additional_vars_main.append(var)
-        additional_entries_main.append(ent)
-    additional_entries_main[0].grid(row=0, column=0, sticky='w', padx=2, pady=1)
-build_additional_main()
 
-# Tankless WH (single)
-section_label("Tankless Water Heater — Main (100%)")
-tankless_var_main = tk.StringVar(); add_labeled_entry("Tankless WH (W or breaker A):", tankless_var_main)
+    # Suite inputs (single column)
+    suite_row = 0  # suite-area-local row
 
-# Steamers/Pools/Spas WH — Main (dynamic)
-section_label("Steamers / Pools / Hot tubs / Spas WH — Main (100%)")
-sps_vars_main, sps_entries_main = [], []
-def on_change_sps_main():
-    add_dynamic_row_if_needed(sps_vars_main, sps_entries_main)
-def build_sps_main():
-    global row
-    frame = tk.Frame(root)
-    frame.grid(row=row, column=0, sticky='w', padx=10, pady=(0,4))
-    row += 1
-    for _ in range(MAX_DYNAMIC_FIELDS):
-        var = tk.StringVar()
-        var.trace_add('write', lambda *_: on_change_sps_main())
-        ent = tk.Entry(frame, textvariable=var, width=14)
-        sps_vars_main.append(var)
-        sps_entries_main.append(ent)
-    sps_entries_main[0].grid(row=0, column=0, sticky='w', padx=2, pady=1)
-build_sps_main()
+    def s_add_entry(label_text, var):
+        global suite_row
+        frm = tk.Frame(suite_frame)
+        frm.grid(row=suite_row, column=0, sticky='w', padx=10, pady=2)
+        tk.Label(frm, text=label_text, width=34, anchor='w').pack(side='left')
+        tk.Entry(frm, textvariable=var, width=14).pack(side='left')
+        suite_row += 1
 
-# Secondary Suite
-section_label("Secondary Suite")
-suite_var = tk.IntVar()
-def toggle_suite():
-    suite_frame.grid() if suite_var.get() else suite_frame.grid_remove()
-frm_suite_cb = tk.Frame(root); frm_suite_cb.grid(row=row, column=0, sticky='w', padx=10, pady=2)
-tk.Checkbutton(frm_suite_cb, text="Include Secondary Suite", variable=suite_var, command=toggle_suite).pack(side='left')
-row += 1
+    suite_area_var  = tk.StringVar(); s_add_entry("Suite Area (m²):", suite_area_var)
+    suite_range_var = tk.StringVar(); s_add_entry("Suite Range (W or breaker A):", suite_range_var)
+    suite_evse_var  = tk.StringVar(); s_add_entry("Suite EVSE (W or breaker A):", suite_evse_var)
 
-suite_frame = tk.Frame(root, bd=2, relief='groove')
-suite_frame.grid(row=row, column=0, sticky='we', padx=10, pady=(2,10))
-suite_frame.grid_remove()
-row += 1
-
-# Suite inputs (single column)
-suite_row = 0  # suite-area-local row
-
-def s_add_entry(label_text, var):
-    global suite_row
-    frm = tk.Frame(suite_frame)
-    frm.grid(row=suite_row, column=0, sticky='w', padx=10, pady=2)
-    tk.Label(frm, text=label_text, width=34, anchor='w').pack(side='left')
-    tk.Entry(frm, textvariable=var, width=14).pack(side='left')
+    tk.Label(suite_frame, text="Additional Loads >1500 W — Suite", font=("Helvetica", 10, "bold")).grid(row=suite_row, column=0, sticky='w', padx=10, pady=(8,2))
     suite_row += 1
+    additional_vars_suite, additional_entries_suite = [], []
+    def on_change_additional_suite():
+        add_dynamic_row_if_needed(additional_vars_suite, additional_entries_suite)
+    frame_suite_add = tk.Frame(suite_frame); frame_suite_add.grid(row=suite_row, column=0, sticky='w', padx=10, pady=(0,4))
+    suite_row += 1
+    for _ in range(MAX_DYNAMIC_FIELDS):
+        var = tk.StringVar()
+        var.trace_add('write', lambda *_: on_change_additional_suite())
+        ent = tk.Entry(frame_suite_add, textvariable=var, width=14)
+        additional_vars_suite.append(var)
+        additional_entries_suite.append(ent)
+    additional_entries_suite[0].grid(row=0, column=0, sticky='w', padx=2, pady=1)
 
-suite_area_var  = tk.StringVar(); s_add_entry("Suite Area (m²):", suite_area_var)
-suite_range_var = tk.StringVar(); s_add_entry("Suite Range (W or breaker A):", suite_range_var)
-suite_evse_var  = tk.StringVar(); s_add_entry("Suite EVSE (W or breaker A):", suite_evse_var)
+    tk.Label(suite_frame, text="Tankless Water Heater — Suite (100%)", font=("Helvetica", 10, "bold")).grid(row=suite_row, column=0, sticky='w', padx=10, pady=(8,2))
+    suite_row += 1
+    tankless_var_suite = tk.StringVar(); s_add_entry("Tankless WH (W or breaker A):", tankless_var_suite)
 
-tk.Label(suite_frame, text="Additional Loads >1500 W — Suite", font=("Helvetica", 10, "bold")).grid(row=suite_row, column=0, sticky='w', padx=10, pady=(8,2))
-suite_row += 1
-additional_vars_suite, additional_entries_suite = [], []
-def on_change_additional_suite():
-    add_dynamic_row_if_needed(additional_vars_suite, additional_entries_suite)
-frame_suite_add = tk.Frame(suite_frame); frame_suite_add.grid(row=suite_row, column=0, sticky='w', padx=10, pady=(0,4))
-suite_row += 1
-for _ in range(MAX_DYNAMIC_FIELDS):
-    var = tk.StringVar()
-    var.trace_add('write', lambda *_: on_change_additional_suite())
-    ent = tk.Entry(frame_suite_add, textvariable=var, width=14)
-    additional_vars_suite.append(var)
-    additional_entries_suite.append(ent)
-additional_entries_suite[0].grid(row=0, column=0, sticky='w', padx=2, pady=1)
+    tk.Label(suite_frame, text="Steamers / Pools / Hot tubs / Spas WH — Suite (100%)", font=("Helvetica", 10, "bold")).grid(row=suite_row, column=0, sticky='w', padx=10, pady=(8,2))
+    suite_row += 1
+    sps_vars_suite, sps_entries_suite = [], []
+    frame_suite_sps = tk.Frame(suite_frame); frame_suite_sps.grid(row=suite_row, column=0, sticky='w', padx=10, pady=(0,4))
+    suite_row += 1
+    def on_change_sps_suite():
+        add_dynamic_row_if_needed(sps_vars_suite, sps_entries_suite)
+    for _ in range(MAX_DYNAMIC_FIELDS):
+        var = tk.StringVar()
+        var.trace_add('write', lambda *_: on_change_sps_suite())
+        ent = tk.Entry(frame_suite_sps, textvariable=var, width=14)
+        sps_vars_suite.append(var)
+        sps_entries_suite.append(ent)
+    sps_entries_suite[0].grid(row=0, column=0, sticky='w', padx=2, pady=1)
 
-tk.Label(suite_frame, text="Tankless Water Heater — Suite (100%)", font=("Helvetica", 10, "bold")).grid(row=suite_row, column=0, sticky='w', padx=10, pady=(8,2))
-suite_row += 1
-tankless_var_suite = tk.StringVar(); s_add_entry("Tankless WH (W or breaker A):", tankless_var_suite)
+    # Buttons
+    btn_frame = tk.Frame(root); btn_frame.grid(row=row, column=0, sticky='w', padx=10, pady=12)
+    tk.Button(btn_frame, text="Calculate Demand", command=calculate_demand).pack(side='left', padx=(0,10))
+    tk.Button(btn_frame, text="Generate PDF Report", command=save_pdf_report).pack(side='left')
 
-tk.Label(suite_frame, text="Steamers / Pools / Hot tubs / Spas WH — Suite (100%)", font=("Helvetica", 10, "bold")).grid(row=suite_row, column=0, sticky='w', padx=10, pady=(8,2))
-suite_row += 1
-sps_vars_suite, sps_entries_suite = [], []
-frame_suite_sps = tk.Frame(suite_frame); frame_suite_sps.grid(row=suite_row, column=0, sticky='w', padx=10, pady=(0,4))
-suite_row += 1
-def on_change_sps_suite():
-    add_dynamic_row_if_needed(sps_vars_suite, sps_entries_suite)
-for _ in range(MAX_DYNAMIC_FIELDS):
-    var = tk.StringVar()
-    var.trace_add('write', lambda *_: on_change_sps_suite())
-    ent = tk.Entry(frame_suite_sps, textvariable=var, width=14)
-    sps_vars_suite.append(var)
-    sps_entries_suite.append(ent)
-sps_entries_suite[0].grid(row=0, column=0, sticky='w', padx=2, pady=1)
-
-# Buttons
-btn_frame = tk.Frame(root); btn_frame.grid(row=row, column=0, sticky='w', padx=10, pady=12)
-tk.Button(btn_frame, text="Calculate Demand", command=calculate_demand).pack(side='left', padx=(0,10))
-tk.Button(btn_frame, text="Generate PDF Report", command=save_pdf_report).pack(side='left')
-
-root.mainloop()
+    root.mainloop()
