@@ -424,22 +424,22 @@ if __name__ == "__main__":
     root.title("CEC Single Dwelling Demand Calculator (CEC 2024)")
 
     # Scrollable content container
-    canvas = tk.Canvas(root)
-    v_scroll = tk.Scrollbar(root, orient="vertical", command=canvas.yview)
-    canvas.configure(yscrollcommand=v_scroll.set)
+    scroll_canvas = tk.Canvas(root)
+    v_scroll = tk.Scrollbar(root, orient="vertical", command=scroll_canvas.yview)
+    scroll_canvas.configure(yscrollcommand=v_scroll.set)
     v_scroll.pack(side="right", fill="y")
-    canvas.pack(side="left", fill="both", expand=True)
-    content = tk.Frame(canvas)
-    canvas.create_window((0, 0), window=content, anchor="nw")
+    scroll_canvas.pack(side="left", fill="both", expand=True)
+    content = tk.Frame(scroll_canvas)
+    scroll_canvas.create_window((0, 0), window=content, anchor="nw")
 
     def _on_frame_configure(event):
-        canvas.configure(scrollregion=canvas.bbox("all"))
+        scroll_canvas.configure(scrollregion=scroll_canvas.bbox("all"))
     content.bind("<Configure>", _on_frame_configure)
 
     # Mouse wheel scrolling
-    canvas.bind_all("<MouseWheel>", lambda e: canvas.yview_scroll(int(-1*(e.delta/120)), "units"))
-    canvas.bind_all("<Button-4>", lambda e: canvas.yview_scroll(-1, "units"))
-    canvas.bind_all("<Button-5>", lambda e: canvas.yview_scroll(1, "units"))
+    scroll_canvas.bind_all("<MouseWheel>", lambda e: scroll_canvas.yview_scroll(int(-1*(e.delta/120)), "units"))
+    scroll_canvas.bind_all("<Button-4>", lambda e: scroll_canvas.yview_scroll(-1, "units"))
+    scroll_canvas.bind_all("<Button-5>", lambda e: scroll_canvas.yview_scroll(1, "units"))
 
     # Logo
     try:
