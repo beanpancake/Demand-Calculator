@@ -306,8 +306,6 @@ def generate_pdf_report(filename, inputs, results, debug_lines):
     def draw_table_section(title, rows):
         nonlocal y
         c.setFont("Helvetica-Bold", 13)
-        c.drawString(margin, y, title)
-        y -= 18
         table_data = [["Item", "Value"]] + rows
         table = Table(table_data, colWidths=[200, width - 2*margin - 200])
         table.setStyle(TableStyle([
@@ -316,13 +314,14 @@ def generate_pdf_report(filename, inputs, results, debug_lines):
             ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.whitesmoke, colors.lightgrey]),
             ('GRID', (0,0), (-1,-1), 0.5, colors.black),
         ]))
-        tw, th = table.wrapOn(c, width - 2*margin, y)
-        if y - th < margin:
-            c.showPage(); y = height - margin - 18
+        tw, th = table.wrapOn(c, width - 2*margin, y - 18)
+        if y - 18 - th < margin:
+            c.showPage()
+            y = height - margin
             c.setFont("Helvetica-Bold", 13)
-            c.drawString(margin, y, title)
-            y -= 18
-            tw, th = table.wrapOn(c, width - 2*margin, y)
+            tw, th = table.wrapOn(c, width - 2*margin, y - 18)
+        c.drawString(margin, y, title)
+        y -= 18
         table.drawOn(c, margin, y - th)
         y -= th + 20
 
