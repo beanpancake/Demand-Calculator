@@ -410,12 +410,30 @@ if __name__ == "__main__":
     root = tk.Tk()
     root.title("CEC Single Dwelling Demand Calculator (CEC 2024)")
 
+    # Scrollable content container
+    canvas = tk.Canvas(root)
+    v_scroll = tk.Scrollbar(root, orient="vertical", command=canvas.yview)
+    canvas.configure(yscrollcommand=v_scroll.set)
+    v_scroll.pack(side="right", fill="y")
+    canvas.pack(side="left", fill="both", expand=True)
+    content = tk.Frame(canvas)
+    canvas.create_window((0, 0), window=content, anchor="nw")
+
+    def _on_frame_configure(event):
+        canvas.configure(scrollregion=canvas.bbox("all"))
+    content.bind("<Configure>", _on_frame_configure)
+
+    # Mouse wheel scrolling
+    canvas.bind_all("<MouseWheel>", lambda e: canvas.yview_scroll(int(-1*(e.delta/120)), "units"))
+    canvas.bind_all("<Button-4>", lambda e: canvas.yview_scroll(-1, "units"))
+    canvas.bind_all("<Button-5>", lambda e: canvas.yview_scroll(1, "units"))
+
     # Logo
     try:
         img = Image.open(LOGO_PATH)
         img = img.resize((300, 80), RESAMPLE_FILTER)
         photo = ImageTk.PhotoImage(img)
-        tk.Label(root, image=photo).grid(row=0, column=0, sticky='w', padx=10, pady=10)
+        tk.Label(content, image=photo).grid(row=0, column=0, sticky='w', padx=10, pady=10)
     except Exception as e:
         print(f"Logo load failed: {e}")
 
@@ -423,12 +441,12 @@ if __name__ == "__main__":
 
     def section_label(text):
         global row
-        tk.Label(root, text=text, font=("Helvetica", 11, "bold")).grid(row=row, column=0, sticky='w', padx=10, pady=(10,2))
+        tk.Label(content, text=text, font=("Helvetica", 11, "bold")).grid(row=row, column=0, sticky='w', padx=10, pady=(10,2))
         row += 1
 
     def add_labeled_entry(label_text, var, width=14):
         global row
-        frm = tk.Frame(root)
+        frm = tk.Frame(content)
         frm.grid(row=row, column=0, sticky='w', padx=10, pady=2)
         tk.Label(frm, text=label_text, width=34, anchor='w').pack(side='left')
         tk.Entry(frm, textvariable=var, width=width).pack(side='left')
@@ -448,12 +466,12 @@ if __name__ == "__main__":
     voltage_var = tk.StringVar(value="240")
     add_labeled_entry("Voltage (V):", voltage_var)
     area_var = tk.StringVar()
-    frm_area = tk.Frame(root); frm_area.grid(row=row, column=0, sticky='w', padx=10, pady=2)
+    frm_area = tk.Frame(content); frm_area.grid(row=row, column=0, sticky='w', padx=10, pady=2)
     area_label_main = tk.Label(frm_area, width=34, anchor='w')
     area_label_main.pack(side='left')
     tk.Entry(frm_area, textvariable=area_var, width=14).pack(side='left')
     row += 1
-    frm_unit = tk.Frame(root); frm_unit.grid(row=row, column=0, sticky='w', padx=10, pady=(0,2))
+    frm_unit = tk.Frame(content); frm_unit.grid(row=row, column=0, sticky='w', padx=10, pady=(0,2))
     tk.Checkbutton(frm_unit, text="Input areas in square feet", variable=area_sqft_var, command=update_area_labels).pack(side='left')
     row += 1
     update_area_labels()
@@ -465,7 +483,7 @@ if __name__ == "__main__":
     ac_var    = tk.StringVar();    add_labeled_entry("Air Conditioning (W or breaker A):", ac_var)
 
     interlock_var = tk.IntVar()
-    frm_il = tk.Frame(root); frm_il.grid(row=row, column=0, sticky='w', padx=10, pady=2)
+    frm_il = tk.Frame(content); frm_il.grid(row=row, column=0, sticky='w', padx=10, pady=2)
     tk.Checkbutton(frm_il, text="Heat and AC Interlocked", variable=interlock_var).pack(side='left')
     row += 1
 
@@ -478,7 +496,7 @@ if __name__ == "__main__":
         add_dynamic_row_if_needed(additional_vars_main, additional_entries_main)
     def build_additional_main():
         global row
-        frame = tk.Frame(root)
+        frame = tk.Frame(content)
         frame.grid(row=row, column=0, sticky='w', padx=10, pady=(0,4))
         row += 1
         for _ in range(MAX_DYNAMIC_FIELDS):
@@ -501,7 +519,7 @@ if __name__ == "__main__":
         add_dynamic_row_if_needed(sps_vars_main, sps_entries_main)
     def build_sps_main():
         global row
-        frame = tk.Frame(root)
+        frame = tk.Frame(content)
         frame.grid(row=row, column=0, sticky='w', padx=10, pady=(0,4))
         row += 1
         for _ in range(MAX_DYNAMIC_FIELDS):
@@ -518,11 +536,11 @@ if __name__ == "__main__":
     suite_var = tk.IntVar()
     def toggle_suite():
         suite_frame.grid() if suite_var.get() else suite_frame.grid_remove()
-    frm_suite_cb = tk.Frame(root); frm_suite_cb.grid(row=row, column=0, sticky='w', padx=10, pady=2)
+    frm_suite_cb = tk.Frame(content); frm_suite_cb.grid(row=row, column=0, sticky='w', padx=10, pady=2)
     tk.Checkbutton(frm_suite_cb, text="Include Secondary Suite", variable=suite_var, command=toggle_suite).pack(side='left')
     row += 1
 
-    suite_frame = tk.Frame(root, bd=2, relief='groove')
+    suite_frame = tk.Frame(content, bd=2, relief='groove')
     suite_frame.grid(row=row, column=0, sticky='we', padx=10, pady=(2,10))
     suite_frame.grid_remove()
     row += 1
@@ -584,7 +602,7 @@ if __name__ == "__main__":
     sps_entries_suite[0].grid(row=0, column=0, sticky='w', padx=2, pady=1)
 
     # Buttons
-    btn_frame = tk.Frame(root); btn_frame.grid(row=row, column=0, sticky='w', padx=10, pady=12)
+    btn_frame = tk.Frame(content); btn_frame.grid(row=row, column=0, sticky='w', padx=10, pady=12)
     tk.Button(btn_frame, text="Calculate Demand", command=calculate_demand).pack(side='left', padx=(0,10))
     tk.Button(btn_frame, text="Generate PDF Report", command=save_pdf_report).pack(side='left')
 
