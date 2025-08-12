@@ -4,7 +4,7 @@ import sys
 import pytest
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-from demand import parse_load
+from calculator.core import parse_load
 
 
 def test_negative_values_return_zero():
