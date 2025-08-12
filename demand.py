@@ -81,7 +81,8 @@ def calculate_demand():
 
     try:
         voltage = float(voltage_var.get())
-        area_main = float(area_var.get())
+        area_main_raw = float(area_var.get())
+        area_main = area_main_raw * 0.092903 if area_sqft_var.get() else area_main_raw
 
         # Main inputs
         range_main_w = parse_load(range_var.get(), voltage)
@@ -96,7 +97,10 @@ def calculate_demand():
         sps_main_all = to_watts_list(sps_vars_main, voltage)            # list @100%
 
         debug.append(f"Voltage: {voltage:.0f} V")
-        debug.append(f"Main area: {area_main:.1f} m²")
+        if area_sqft_var.get():
+            debug.append(f"Main area input: {area_main_raw:.1f} ft² -> {area_main:.1f} m²")
+        else:
+            debug.append(f"Main area: {area_main:.1f} m²")
 
         base_main_w = basic_load_w(area_main)
         debug.append(f"Basic load (main): {base_main_w:.0f} W")
@@ -149,7 +153,8 @@ def calculate_demand():
         suite_inputs = {}
         if suite_included:
             debug.append("\n--- Suite ---")
-            area_suite = float(suite_area_var.get())
+            area_suite_raw = float(suite_area_var.get())
+            area_suite = area_suite_raw * 0.092903 if area_sqft_var.get() else area_suite_raw
             range_suite_w = parse_load(suite_range_var.get(), voltage)
             evse_suite_w  = parse_load(suite_evse_var.get(), voltage)
 
@@ -157,6 +162,11 @@ def calculate_demand():
             add_suite_list_w = [w for w in add_suite_all if w > 1500]
             tankless_suite_w = parse_load(tankless_var_suite.get(), voltage)
             sps_suite_all = to_watts_list(sps_vars_suite, voltage)
+
+            if area_sqft_var.get():
+                debug.append(f"Suite area input: {area_suite_raw:.1f} ft² -> {area_suite:.1f} m²")
+            else:
+                debug.append(f"Suite area: {area_suite:.1f} m²")
 
             base_suite_w = basic_load_w(area_suite)
             range_suite_d = range_demand_w(range_suite_w)
@@ -189,18 +199,26 @@ def calculate_demand():
 
             suite_inputs = {
                 "Suite Area (m²)": area_suite,
+            }
+            if area_sqft_var.get():
+                suite_inputs["Suite Area (ft²)"] = area_suite_raw
+            suite_inputs.update({
                 "Suite Range (W)": range_suite_w if range_suite_w > 0 else "Not applicable",
                 "Suite EVSE (W)": evse_suite_w if evse_suite_w > 0 else "Not applicable",
                 "Suite Additional Loads Raw (W)": sum(add_suite_list_w) if add_suite_list_w else "Not applicable",
                 "Suite Additional Loads Factored (W)": add_suite_d if add_suite_sum > 0 else "Not applicable",
                 "Suite Tankless WH (W)": int(tankless_suite_w) if tankless_suite_w > 0 else "Not applicable",
-                "Suite Steamers/Pools/Spas (W)": ", ".join(str(int(x)) for x in sps_suite_all) if sps_suite_all else "Not applicable"
-            }
+                "Suite Steamers/Pools/Spas (W)": ", ".join(str(int(x)) for x in sps_suite_all) if sps_suite_all else "Not applicable",
+            })
 
         # ---------------- Prepare PDF data ----------------
         inputs = {
             "Voltage (V)": voltage,
             "Main Area (m²)": area_main,
+        }
+        if area_sqft_var.get():
+            inputs["Main Area (ft²)"] = area_main_raw
+        inputs.update({
             "Range (W)": range_main_w if range_main_w > 0 else "Not applicable",
             "Heating (W)": heat_main_w if heat_main_w > 0 else "Not applicable",
             "AC (W)": ac_main_w if ac_main_w > 0 else "Not applicable",
@@ -210,7 +228,7 @@ def calculate_demand():
             "Tankless WH (W) [100%]": int(tankless_main_w) if tankless_main_w > 0 else "Not applicable",
             "Steamers/Pools/Spas WH (W) [100%]": ", ".join(str(int(x)) for x in sps_main_all) if sps_main_all else "Not applicable",
             "Suite Included": "Yes" if suite_included else "No"
-        }
+        })
         if suite_included:
             inputs.update(suite_inputs)
 
@@ -311,6 +329,8 @@ def generate_pdf_report(filename, inputs, results, debug_lines):
     # Site Info table
     site_rows = [["Voltage (V)", inputs.get('Voltage (V)')],
                  ["Main Area (m²)", inputs.get('Main Area (m²)')]]
+    if 'Main Area (ft²)' in inputs:
+        site_rows.append(["Main Area (ft²)", inputs.get('Main Area (ft²)')])
     draw_table_section("Site Info", site_rows)
 
     # Loads (Main Dwelling) table
@@ -330,31 +350,32 @@ def generate_pdf_report(filename, inputs, results, debug_lines):
     if inputs.get("Suite Included") == "Yes":
         suite_rows = [
             ["Suite Area (m²)", inputs.get('Suite Area (m²)')],
+        ]
+        if 'Suite Area (ft²)' in inputs:
+            suite_rows.append(["Suite Area (ft²)", inputs.get('Suite Area (ft²)')])
+        suite_rows.extend([
             ["Suite Range (W)", inputs.get('Suite Range (W)', 'Not applicable')],
             ["Suite EVSE (W)", inputs.get('Suite EVSE (W)', 'Not applicable')],
             ["Suite Additional Loads Raw (W)", inputs.get('Suite Additional Loads Raw (W)', 'Not applicable')],
             ["Suite Additional Loads Factored (W)", inputs.get('Suite Additional Loads Factored (W)', 'Not applicable')],
             ["Suite Tankless WH (W)", inputs.get('Suite Tankless WH (W)', 'Not applicable')],
             ["Suite Steamers/Pools/Spas (W)", inputs.get('Suite Steamers/Pools/Spas (W)', 'Not applicable')],
-        ]
+        ])
         draw_table_section("Loads (Secondary Suite)", suite_rows)
 
     # Results table
     result_rows = [[k, v] for k, v in results.items()]
     draw_table_section("Results", result_rows)
 
-    # Debug
-    y -= 8
-    c.setFont("Helvetica-Bold", 13)
-    c.drawString(margin, y, "Calculation Details")
-    y -= 18
-    c.setFont("Helvetica", 9)
+    # Calculation Details table
+    debug_rows = []
     for line in debug_lines:
-        if y < margin + 40:
-            c.showPage(); y = height - margin
-            c.setFont("Helvetica", 9)
-        c.drawString(margin + 15, y, line)
-        y -= 12
+        if ':' in line:
+            k, v = line.split(':', 1)
+            debug_rows.append([k.strip(), v.strip()])
+        else:
+            debug_rows.append([line.strip(), ''])
+    draw_table_section("Calculation Details", debug_rows)
 
     c.save()
 
@@ -413,12 +434,29 @@ if __name__ == "__main__":
         tk.Entry(frm, textvariable=var, width=width).pack(side='left')
         row += 1
 
+    area_label_main = None
+    suite_area_label = None
+    area_sqft_var = tk.IntVar()
+    def update_area_labels():
+        unit = "ft²" if area_sqft_var.get() else "m²"
+        area_label_main.config(text=f"Main Area ({unit}):")
+        if suite_area_label:
+            suite_area_label.config(text=f"Suite Area ({unit}):")
+
     # Site Info
     section_label("Site Info")
     voltage_var = tk.StringVar(value="240")
     add_labeled_entry("Voltage (V):", voltage_var)
     area_var = tk.StringVar()
-    add_labeled_entry("Main Area (m²):", area_var)
+    frm_area = tk.Frame(root); frm_area.grid(row=row, column=0, sticky='w', padx=10, pady=2)
+    area_label_main = tk.Label(frm_area, width=34, anchor='w')
+    area_label_main.pack(side='left')
+    tk.Entry(frm_area, textvariable=area_var, width=14).pack(side='left')
+    row += 1
+    frm_unit = tk.Frame(root); frm_unit.grid(row=row, column=0, sticky='w', padx=10, pady=(0,2))
+    tk.Checkbutton(frm_unit, text="Input areas in square feet", variable=area_sqft_var, command=update_area_labels).pack(side='left')
+    row += 1
+    update_area_labels()
 
     # Loads — Main
     section_label("Loads — Main")
@@ -500,9 +538,16 @@ if __name__ == "__main__":
         tk.Entry(frm, textvariable=var, width=14).pack(side='left')
         suite_row += 1
 
-    suite_area_var  = tk.StringVar(); s_add_entry("Suite Area (m²):", suite_area_var)
+    suite_area_var = tk.StringVar()
+    frm_suite_area = tk.Frame(suite_frame); frm_suite_area.grid(row=suite_row, column=0, sticky='w', padx=10, pady=2)
+    suite_area_label = tk.Label(frm_suite_area, width=34, anchor='w')
+    suite_area_label.pack(side='left')
+    tk.Entry(frm_suite_area, textvariable=suite_area_var, width=14).pack(side='left')
+    suite_row += 1
+
     suite_range_var = tk.StringVar(); s_add_entry("Suite Range (W or breaker A):", suite_range_var)
     suite_evse_var  = tk.StringVar(); s_add_entry("Suite EVSE (W or breaker A):", suite_evse_var)
+    update_area_labels()
 
     tk.Label(suite_frame, text="Additional Loads >1500 W — Suite", font=("Helvetica", 10, "bold")).grid(row=suite_row, column=0, sticky='w', padx=10, pady=(8,2))
     suite_row += 1
