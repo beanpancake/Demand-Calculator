@@ -1,0 +1,43 @@
+<!doctype html>
+<title>Demand Calculator</title>
+<h1>Demand Calculator</h1>
+{% if error %}
+<p style="color:red;">{{ error }}</p>
+{% endif %}
+<form method="post">
+  <label>Voltage:
+    <input type="number" step="any" name="voltage" required value="{{ request.form.voltage or '240' }}">
+  </label><br>
+  <label>Main Area (m²):
+    <input type="number" step="any" name="area" required value="{{ request.form.area or '' }}">
+  </label><br>
+  <label>Range (A or W):
+    <input type="text" name="range" value="{{ request.form.range or '' }}">
+  </label><br>
+  <label>Heating (A or W):
+    <input type="text" name="heat" value="{{ request.form.heat or '' }}">
+  </label><br>
+  <label>AC (A or W):
+    <input type="text" name="ac" value="{{ request.form.ac or '' }}">
+  </label><br>
+  <label>EVSE (A or W):
+    <input type="text" name="evse" value="{{ request.form.evse or '' }}">
+  </label><br>
+  <label>Interlocked Heat/AC:
+    <input type="checkbox" name="interlocked" {% if request.form.get('interlocked') %}checked{% endif %}>
+  </label><br>
+  <label>Additional Loads >1500W (comma separated):
+    <input type="text" name="additional" value="{{ request.form.additional or '' }}">
+  </label><br>
+  <label>Tankless WH (A or W):
+    <input type="text" name="tankless" value="{{ request.form.tankless or '' }}">
+  </label><br>
+  <label>Steamers/Pools/Spas (comma separated):
+    <input type="text" name="sps" value="{{ request.form.sps or '' }}">
+  </label><br>
+  <button type="submit">Calculate</button>
+</form>
+{% if result %}
+<h2>Result</h2>
+<p>{{ result['Final Calculated Load (W)'] }} W</p>
+{% endif %}
