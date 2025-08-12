@@ -618,6 +618,11 @@ if __name__ == "__main__":
     btn_frame = tk.Frame(content); btn_frame.grid(row=row, column=0, sticky='w', padx=10, pady=12)
     tk.Button(btn_frame, text="Calculate Demand", command=calculate_demand).pack(side='left', padx=(0,10))
     tk.Button(btn_frame, text="Generate PDF Report", command=save_pdf_report).pack(side='left')
+    # Size the window to fit all initial content before starting the event loop
+    root.update_idletasks()
+    req_w = content.winfo_reqwidth() + v_scroll.winfo_reqwidth()
+    req_h = content.winfo_reqheight()
+    root.geometry(f"{req_w}x{req_h}")
 
     tk.Button(root, text="Help", command=show_help).place(relx=1.0, rely=1.0, anchor='se', x=-10, y=-10)
 
