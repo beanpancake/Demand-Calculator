@@ -7,18 +7,22 @@ def test_index_get():
     assert resp.status_code == 200
 
 
-def test_index_post():
+def test_api_calculate():
     client = app.test_client()
-    resp = client.post('/', data={
-        'voltage': '240',
-        'area': '100',
-        'range': '40',
-        'heat': '0',
-        'ac': '0',
-        'evse': '0',
-        'additional': '',
-        'tankless': '',
-        'sps': ''
-    })
+    resp = client.post(
+        '/api/calculate',
+        json={
+            'voltage': '240',
+            'area': '100',
+            'range': '40',
+            'heat': '0',
+            'ac': '0',
+            'evse': '0',
+            'additional': [],
+            'tankless': '',
+            'sps': []
+        }
+    )
     assert resp.status_code == 200
-    assert b'Result' in resp.data
+    data = resp.get_json()
+    assert data['result']['Final Calculated Load (W)'] == '24000'
