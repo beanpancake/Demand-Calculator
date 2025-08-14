@@ -4,14 +4,26 @@ This project provides tools to compute the electrical demand for single dwelling
 
 ## Web application
 
-A minimal Flask app is included to run the calculator in a browser.
+The calculator now uses a React + TypeScript frontend served by a small
+Flask backend.
 
-### Running
+### Backend
 
 ```
 pip install flask
 python app.py
 ```
 
-Then open [http://localhost:5000](http://localhost:5000) to use the calculator.
+The backend exposes a JSON API at `/api/calculate`.
+
+### Frontend
+
+```
+cd frontend
+npm install
+npm run dev
+```
+
+The development server expects the Flask backend to be running on the same
+host. To build a production bundle run `npm run build`.
 
