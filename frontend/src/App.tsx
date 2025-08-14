@@ -12,6 +12,11 @@ interface FormState {
   sps: string[];
 }
 
+interface ApiResponse {
+  error?: string;
+  result?: Record<string, string>;
+}
+
 function App() {
   const [form, setForm] = useState<FormState>({
     voltage: '240',
@@ -27,7 +32,7 @@ function App() {
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const updateField = (key: keyof FormState, value: any) => {
+  const updateField = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm(f => ({ ...f, [key]: value }));
   };
 
@@ -70,13 +75,24 @@ function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      const data = await resp.json();
-      if (data.error) {
-        setError(data.error);
+      const text = await resp.text();
+      if (!text) {
+        setError('Empty response from server');
+        return;
+      }
+      let data: ApiResponse;
+      try {
+        data = JSON.parse(text) as ApiResponse;
+      } catch {
+        setError('Invalid JSON response');
+        return;
+      }
+      if (!resp.ok || 'error' in data) {
+        setError(data.error || `Server error (${resp.status})`);
       } else {
         setResult(data.result['Final Calculated Load (W)']);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError(String(err));
     }
   };
