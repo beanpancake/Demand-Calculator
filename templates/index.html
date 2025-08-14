@@ -6,38 +6,127 @@
 {% endif %}
 <form method="post">
   <label>Voltage:
-    <input type="number" step="any" name="voltage" required value="{{ request.form.voltage or '240' }}">
+    <input type="number" step="any" name="voltage" required value="240">
   </label><br>
-  <label>Main Area (m²):
-    <input type="number" step="any" name="area" required value="{{ request.form.area or '' }}">
+
+  <label>Area Unit:
+    <select name="area_unit" id="area-unit">
+      <option value="m2" selected>m²</option>
+      <option value="ft2">ft²</option>
+    </select>
   </label><br>
+
+  <label>Main Area (<span class="area-unit-label">m²</span>):
+    <input type="number" step="any" name="area" required value="">
+  </label><br>
+
   <label>Range (A or W):
-    <input type="text" name="range" value="{{ request.form.range or '' }}">
+    <input type="text" name="range" value="">
   </label><br>
   <label>Heating (A or W):
-    <input type="text" name="heat" value="{{ request.form.heat or '' }}">
+    <input type="text" name="heat" value="">
   </label><br>
   <label>AC (A or W):
-    <input type="text" name="ac" value="{{ request.form.ac or '' }}">
+    <input type="text" name="ac" value="">
   </label><br>
   <label>EVSE (A or W):
-    <input type="text" name="evse" value="{{ request.form.evse or '' }}">
+    <input type="text" name="evse" value="">
   </label><br>
   <label>Interlocked Heat/AC:
-    <input type="checkbox" name="interlocked" {% if request.form.get('interlocked') %}checked{% endif %}>
+    <input type="checkbox" name="interlocked">
   </label><br>
-  <label>Additional Loads >1500W (comma separated):
-    <input type="text" name="additional" value="{{ request.form.additional or '' }}">
-  </label><br>
+
+  <label>Additional Loads >1500W:</label><br>
+  <div id="additional-main-fields">
+      <input type="text" name="additional" value=""><br>
+  </div>
+
   <label>Tankless WH (A or W):
-    <input type="text" name="tankless" value="{{ request.form.tankless or '' }}">
+    <input type="text" name="tankless" value="">
   </label><br>
-  <label>Steamers/Pools/Spas (comma separated):
-    <input type="text" name="sps" value="{{ request.form.sps or '' }}">
+
+  <label>Steamers/Pools/Spas:</label><br>
+  <div id="sps-main-fields">
+      <input type="text" name="sps" value=""><br>
+  </div>
+
+  <label>Include Suite:
+    <input type="checkbox" name="suite" id="suite-checkbox">
   </label><br>
+
+  <div id="suite-section" style="display:none; margin-left:20px;">
+    <label>Suite Area (<span class="area-unit-label">m²</span>):
+      <input type="number" step="any" name="suite_area" value="">
+    </label><br>
+    <label>Suite Range (A or W):
+      <input type="text" name="suite_range" value="">
+    </label><br>
+    <label>Suite EVSE (A or W):
+      <input type="text" name="suite_evse" value="">
+    </label><br>
+    <label>Suite Additional Loads >1500W:</label><br>
+    <div id="additional-suite-fields">
+        <input type="text" name="suite_additional" value=""><br>
+    </div>
+    <label>Suite Tankless WH (A or W):
+      <input type="text" name="suite_tankless" value="">
+    </label><br>
+    <label>Suite Steamers/Pools/Spas:</label><br>
+    <div id="sps-suite-fields">
+        <input type="text" name="suite_sps" value=""><br>
+    </div>
+  </div>
+
   <button type="submit">Calculate</button>
 </form>
+
 {% if result %}
 <h2>Result</h2>
-<p>{{ result['Final Calculated Load (W)'] }} W</p>
+<p>{{ result }} W</p>
 {% endif %}
+
+<script>
+function setupDynamic(containerId, name, max=10){
+  const container=document.getElementById(containerId);
+  function check(){
+    const inputs=container.querySelectorAll('input[name="'+name+'"]');
+    const last=inputs[inputs.length-1];
+    if(last.value.trim()!=='' && inputs.length<max){
+      const br=document.createElement('br');
+      const inp=document.createElement('input');
+      inp.type='text';
+      inp.name=name;
+      inp.addEventListener('input', check);
+      container.appendChild(inp);
+      container.appendChild(br);
+    }
+  }
+  container.querySelectorAll('input[name="'+name+'"]').forEach(inp=>inp.addEventListener('input', check));
+}
+
+function updateAreaLabels(){
+  const unit=document.getElementById('area-unit').value==='ft2'?'ft²':'m²';
+  document.querySelectorAll('.area-unit-label').forEach(el=>el.textContent=unit);
+}
+
+function toggleSuite(){
+  const section=document.getElementById('suite-section');
+  const checked=document.getElementById('suite-checkbox').checked;
+  section.style.display=checked?'block':'none';
+}
+
+document.addEventListener('DOMContentLoaded', function(){
+  if (performance.getEntriesByType('navigation')[0].type === 'reload') {
+    document.querySelector('form').reset();
+  }
+  setupDynamic('additional-main-fields','additional');
+  setupDynamic('sps-main-fields','sps');
+  setupDynamic('additional-suite-fields','suite_additional');
+  setupDynamic('sps-suite-fields','suite_sps');
+  updateAreaLabels();
+  toggleSuite();
+  document.getElementById('area-unit').addEventListener('change', updateAreaLabels);
+  document.getElementById('suite-checkbox').addEventListener('change', toggleSuite);
+});
+</script>
+
