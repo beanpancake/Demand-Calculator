@@ -7,7 +7,6 @@ try:
 except ImportError:
     RESAMPLE_FILTER = Image.ANTIALIAS
 
-from pathlib import Path
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
@@ -16,33 +15,12 @@ from reportlab.platypus import Table, TableStyle, Paragraph
 from reportlab.lib.styles import ParagraphStyle
 import math
 
-PDF_BG = colors.HexColor("#FDEFE6")
-PDF_PANEL = colors.HexColor("#fff8f3")
-PDF_ACCENT = colors.HexColor("#f07727")
-PDF_ACCENT_STRONG = colors.HexColor("#f8bf9b")
-PDF_TEXT = colors.HexColor("#2d1a13")
-PDF_MUTED = colors.HexColor("#6f5143")
-PDF_CARD = colors.HexColor("#fff3e6")
-PDF_BORDER = colors.HexColor("#f1d4c3")
+LOGO_PATH = "logo.png"
 MAX_DYNAMIC_FIELDS = 10
 
 last_calc_data = None  # (inputs, results, debug)
 
 # ----------------------------- Helpers -----------------------------
-
-def resolve_logo_path():
-    """Return the first matching logo.* file in the script directory (case-insensitive)."""
-    script_dir = Path(__file__).resolve().parent
-    allowed_exts = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff"}
-    candidates = []
-    for entry in script_dir.iterdir():
-        if entry.is_file():
-            lower_name = entry.name.lower()
-            if lower_name.startswith("logo.") and entry.suffix.lower() in allowed_exts:
-                candidates.append(entry)
-    if not candidates:
-        return None
-    return sorted(candidates, key=lambda p: p.name.lower())[0]
 
 def parse_load(raw, voltage):
     """If value ≤500: treat as breaker amps (A*V*0.8).
@@ -305,59 +283,31 @@ def generate_pdf_report(filename, inputs, results, debug_lines):
     margin = 50
     y = height - margin
 
-    def apply_page_background():
-        c.setFillColor(PDF_BG)
-        c.rect(0, 0, width, height, fill=1, stroke=0)
-        c.setFillColor(PDF_TEXT)
-        c.setStrokeColor(PDF_BORDER)
+    # White band behind logo for cleanliness
+    c.setFillColor(colors.white)
+    band_h = 60
+    c.rect(margin-5, y-band_h, width - 2*margin + 10, band_h, fill=1, stroke=0)
+    c.setFillColor(colors.black)
 
-    apply_page_background()
+    # Logo at top-right
+    try:
+        logo = ImageReader(LOGO_PATH)
+        logo_w, logo_h = 150, 40
+        c.drawImage(logo, width - margin - logo_w, y - logo_h, width=logo_w, height=logo_h,
+                    preserveAspectRatio=True, mask='auto')
+    except Exception as e:
+        print(f"PDF logo load failed: {e}")
+    y -= band_h + 20
 
-    def draw_header_band():
-        nonlocal y
-        band_h = 60
-        c.setFillColor(PDF_PANEL)
-        c.rect(margin - 5, y - band_h, width - 2 * margin + 10, band_h, fill=1, stroke=0)
-        c.setStrokeColor(PDF_BORDER)
-        c.setLineWidth(1)
-        c.rect(margin - 5, y - band_h, width - 2 * margin + 10, band_h, fill=0, stroke=1)
-        c.setFillColor(PDF_TEXT)
-
-        logo_path = resolve_logo_path()
-        if logo_path:
-            try:
-                logo = ImageReader(str(logo_path))
-                logo_w, logo_h = 150, 40
-                c.drawImage(logo, width - margin - logo_w, y - logo_h, width=logo_w, height=logo_h,
-                            preserveAspectRatio=True, mask='auto')
-            except Exception as e:
-                print(f"PDF logo load failed: {e}")
-        y -= band_h + 18
-
-    draw_header_band()
-
+    # Title
     c.setFont("Helvetica-Bold", 16)
-    c.setFillColor(PDF_TEXT)
     c.drawString(margin, y, "CEC Single Dwelling Demand Calculation Report")
-    c.setStrokeColor(PDF_ACCENT)
-    c.setLineWidth(2)
-    c.line(margin, y - 6, width - margin, y - 6)
-    y -= 28
-    c.setStrokeColor(PDF_BORDER)
+    y -= 30
 
-    normal_style = ParagraphStyle("table_normal", fontName="Helvetica", fontSize=10, textColor=PDF_TEXT)
+    normal_style = ParagraphStyle("table_normal", fontName="Helvetica", fontSize=10)
     header_style = ParagraphStyle(
         "table_header", parent=normal_style, fontName="Helvetica-Bold", textColor=colors.white
     )
-
-    def make_value(value):
-        muted = isinstance(value, str) and value.strip().lower().startswith("not applicable")
-        style = ParagraphStyle(
-            "value_muted" if muted else "value",
-            parent=normal_style,
-            textColor=PDF_MUTED if muted else PDF_TEXT,
-        )
-        return Paragraph(str(value), style)
 
     def draw_table_section(title, rows):
         nonlocal y
@@ -365,15 +315,15 @@ def generate_pdf_report(filename, inputs, results, debug_lines):
         table_data = [[Paragraph("Item", header_style), Paragraph("Value", header_style)]]
         for item, value in rows:
             table_data.append(
-                [Paragraph(str(item), normal_style), make_value(value)]
+                [Paragraph(str(item), normal_style), Paragraph(str(value), normal_style)]
             )
         table = Table(table_data, colWidths=[200, width - 2 * margin - 200])
         table.setStyle(
             TableStyle(
                 [
-                    ('BACKGROUND', (0, 0), (-1, 0), PDF_ACCENT),
-                    ('ROWBACKGROUNDS', (0, 1), (-1, -1), [PDF_CARD, PDF_PANEL]),
-                    ('GRID', (0, 0), (-1, -1), 0.5, PDF_BORDER),
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.lightblue),
+                    ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.whitesmoke, colors.lightgrey]),
+                    ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
                     ('VALIGN', (0, 0), (-1, -1), 'TOP'),
                 ]
             )
@@ -381,13 +331,10 @@ def generate_pdf_report(filename, inputs, results, debug_lines):
         tw, th = table.wrapOn(c, width - 2 * margin, y - 18)
         if y - 18 - th < margin:
             c.showPage()
-            apply_page_background()
             y = height - margin
             c.setFont("Helvetica-Bold", 13)
             tw, th = table.wrapOn(c, width - 2 * margin, y - 18)
         c.drawString(margin, y, title)
-        c.setStrokeColor(PDF_BORDER)
-        c.line(margin, y - 4, width - margin, y - 4)
         y -= 18
         table.drawOn(c, margin, y - th)
         y -= th + 20
@@ -509,17 +456,13 @@ if __name__ == "__main__":
     scroll_canvas.bind_all("<Button-5>", lambda e: scroll_canvas.yview_scroll(1, "units"))
 
     # Logo
-    logo_path = resolve_logo_path()
-    if logo_path:
-        try:
-            img = Image.open(logo_path)
-            img = img.resize((300, 80), RESAMPLE_FILTER)
-            photo = ImageTk.PhotoImage(img)
-            tk.Label(content, image=photo).grid(row=0, column=0, sticky='w', padx=10, pady=10)
-        except Exception as e:
-            print(f"Logo load failed: {e}")
-    else:
-        print("Logo not found; skipping UI logo.")
+    try:
+        img = Image.open(LOGO_PATH)
+        img = img.resize((300, 80), RESAMPLE_FILTER)
+        photo = ImageTk.PhotoImage(img)
+        tk.Label(content, image=photo).grid(row=0, column=0, sticky='w', padx=10, pady=10)
+    except Exception as e:
+        print(f"Logo load failed: {e}")
 
     row = 1  # main column row counter
 
