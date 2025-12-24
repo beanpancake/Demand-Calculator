@@ -278,16 +278,29 @@ def build_dynamic_block(parent, label_text, vars_list, entries_list, on_change_c
 # ----------------------------- PDF Generation -----------------------------
 
 def generate_pdf_report(filename, inputs, results, debug_lines):
+    PALETTE_BG = colors.HexColor("#FDEFE6")
+    PALETTE_PANEL = colors.HexColor("#fff8f3")
+    PALETTE_ACCENT = colors.HexColor("#f07727")
+    PALETTE_ACCENT_STRONG = colors.HexColor("#f8bf9b")
+    PALETTE_TEXT = colors.HexColor("#2d1a13")
+    PALETTE_MUTED = colors.HexColor("#6f5143")
+    PALETTE_CARD = colors.HexColor("#fff3e6")
+    PALETTE_BORDER = colors.HexColor("#f1d4c3")
+
     c = canvas.Canvas(filename, pagesize=letter)
     width, height = letter
     margin = 50
     y = height - margin
 
+    # Page background
+    c.setFillColor(PALETTE_BG)
+    c.rect(0, 0, width, height, fill=1, stroke=0)
+
     # White band behind logo for cleanliness
-    c.setFillColor(colors.white)
+    c.setFillColor(PALETTE_PANEL)
     band_h = 60
     c.rect(margin-5, y-band_h, width - 2*margin + 10, band_h, fill=1, stroke=0)
-    c.setFillColor(colors.black)
+    c.setFillColor(PALETTE_TEXT)
 
     # Logo at top-right
     try:
@@ -304,9 +317,9 @@ def generate_pdf_report(filename, inputs, results, debug_lines):
     c.drawString(margin, y, "CEC Single Dwelling Demand Calculation Report")
     y -= 30
 
-    normal_style = ParagraphStyle("table_normal", fontName="Helvetica", fontSize=10)
+    normal_style = ParagraphStyle("table_normal", fontName="Helvetica", fontSize=10, textColor=PALETTE_TEXT)
     header_style = ParagraphStyle(
-        "table_header", parent=normal_style, fontName="Helvetica-Bold", textColor=colors.white
+        "table_header", parent=normal_style, fontName="Helvetica-Bold", textColor=PALETTE_PANEL
     )
 
     def draw_table_section(title, rows):
@@ -321,9 +334,9 @@ def generate_pdf_report(filename, inputs, results, debug_lines):
         table.setStyle(
             TableStyle(
                 [
-                    ('BACKGROUND', (0, 0), (-1, 0), colors.lightblue),
-                    ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.whitesmoke, colors.lightgrey]),
-                    ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+                    ('BACKGROUND', (0, 0), (-1, 0), PALETTE_ACCENT),
+                    ('ROWBACKGROUNDS', (0, 1), (-1, -1), [PALETTE_CARD, PALETTE_PANEL]),
+                    ('GRID', (0, 0), (-1, -1), 0.5, PALETTE_BORDER),
                     ('VALIGN', (0, 0), (-1, -1), 'TOP'),
                 ]
             )
@@ -331,10 +344,15 @@ def generate_pdf_report(filename, inputs, results, debug_lines):
         tw, th = table.wrapOn(c, width - 2 * margin, y - 18)
         if y - 18 - th < margin:
             c.showPage()
+            c.setFillColor(PALETTE_BG)
+            c.rect(0, 0, width, height, fill=1, stroke=0)
+            c.setFillColor(PALETTE_TEXT)
             y = height - margin
             c.setFont("Helvetica-Bold", 13)
             tw, th = table.wrapOn(c, width - 2 * margin, y - 18)
+        c.setFillColor(PALETTE_MUTED)
         c.drawString(margin, y, title)
+        c.setFillColor(PALETTE_TEXT)
         y -= 18
         table.drawOn(c, margin, y - th)
         y -= th + 20
